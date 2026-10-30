@@ -750,7 +750,7 @@ require('lazy').setup({
     lazy = false,
     build = ':TSUpdate',
     config = function()
-      require('nvim/treesitter').install {
+      require('nvim-treesitter').install {
        'bash', 'c', 'diff', 'go', 'gomod', 'gosum', 'gowork', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc'
       }
 
