@@ -746,6 +746,7 @@ require('lazy').setup({
   },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    branch = 'master',
     build = ':TSUpdate',
     opts = {
       ensure_installed = { 'bash', 'c', 'diff', 'go', 'gomod', 'gosum', 'gowork', 'html', 'http', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc' },
