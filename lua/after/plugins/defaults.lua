@@ -63,7 +63,6 @@ vim.o.incsearch = true
 
 vim.keymap.set('n', '<leader>gd', '<Cmd>Gvdiffsplit<CR>', { desc = '[G]it [D]iff (vertical split)' })
 
-vim.keymap.set('n', '<leader>p', '<Cmd>Prettier<CR>', { desc = '[P]rettier format' })
 vim.keymap.set('n', '<leader>v', '<Cmd>NERDTreeToggle<CR>', { desc = '[V]iew file tree' })
 vim.keymap.set('n', '<leader>w', '<Cmd>bufdo bd<CR>', { desc = '[W]ipe all buffers' })
 
