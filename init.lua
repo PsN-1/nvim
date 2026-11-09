@@ -128,8 +128,9 @@ vim.opt.smartcase = true
 -- Keep signcolumn on by default
 vim.opt.signcolumn = 'yes'
 
--- Decrease update time
-vim.opt.updatetime = 250
+-- CursorHold interval (LSP / plugins). 250ms + document highlight is costly in big Go repos;
+-- performance.lua may raise this further.
+vim.opt.updatetime = 1000
 
 -- Decrease mapped sequence wait time
 -- Displays which-key popup sooner
@@ -249,6 +250,7 @@ require('lazy').setup({
   { 'tpope/vim-fugitive' },
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
+    event = { 'BufReadPre', 'BufNewFile' },
     opts = {
       signs = {
         add = { text = '+' },
@@ -257,6 +259,16 @@ require('lazy').setup({
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
+      attach_to_untracked = false,
+      current_line_blame = false,
+      numhl = false,
+      watch_gitdir = {
+        enable = true,
+        follow_files = false,
+        interval = 3000,
+      },
+      max_file_length = 200000,
+      preview_config = {},
     },
   },
 
@@ -277,7 +289,7 @@ require('lazy').setup({
 
   { -- Useful plugin to show you pending keybinds.
     'folke/which-key.nvim',
-    event = 'VimEnter',
+    event = 'VeryLazy',
     opts = {
       spec = {
         { '<leader>c', group = '[C]ode' },
@@ -298,19 +310,34 @@ require('lazy').setup({
 
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
-    event = 'VimEnter',
     branch = '0.1.x',
+    cmd = 'Telescope',
+    keys = {
+      { '<leader>sf', desc = '[S]earch [F]iles' },
+      { '<leader>sg', desc = '[S]earch by [G]rep' },
+      { '<leader><leader>', desc = '[ ] Find existing buffers' },
+    },
     dependencies = {
       'nvim-lua/plenary.nvim',
       { 'nvim-telescope/telescope-ui-select.nvim' },
       { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
     },
     config = function()
+      local find_command = (function()
+        if vim.fn.executable 'fd' == 1 then
+          return { 'fd', '--type', 'f', '--hidden', '--strip-cwd-prefix', '--exclude', '.git' }
+        end
+        if vim.fn.executable 'rg' == 1 then
+          return { 'rg', '--files', '--hidden', '--glob', '!.git/**' }
+        end
+      end)()
+
       require('telescope').setup {
         defaults = {
           preview = {
             treesitter = false,
           },
+          find_command = find_command,
         },
         extensions = {
           ['ui-select'] = {
@@ -321,14 +348,29 @@ require('lazy').setup({
 
       pcall(require('telescope').load_extension, 'ui-select')
 
-      -- See `:help telescope.builtin`
       local builtin = require 'telescope.builtin'
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-      vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set(
+        'n',
+        '<leader>sf',
+        function()
+          builtin.find_files { find_command = find_command, hidden = true, no_ignore = false }
+        end,
+        { desc = '[S]earch [F]iles' }
+      )
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
-      vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      vim.keymap.set(
+        'n',
+        '<leader>sg',
+        function()
+          builtin.live_grep { additional_args = function()
+            return { '--hidden', '--glob', '!.git' }
+          end }
+        end,
+        { desc = '[S]earch by [G]rep' }
+      )
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
@@ -458,39 +500,8 @@ require('lazy').setup({
           --  For example, in C this would take you to the header.
           map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
 
-          -- The following two autocommands are used to highlight references of the
-          -- word under your cursor when your cursor rests there for a little while.
-          --    See `:help CursorHold` for information about when this is executed
-          --
-          -- When you move your cursor, the highlights will be cleared (the second autocommand).
+          -- Document highlight on CursorHold is disabled for responsiveness in large repos.
           local client = vim.lsp.get_client_by_id(event.data.client_id)
-          if client and client.server_capabilities.documentHighlightProvider then
-            local highlight_augroup = vim.api.nvim_create_augroup('kickstart-lsp-highlight', { clear = false })
-            vim.api.nvim_create_autocmd({ 'CursorHold', 'CursorHoldI' }, {
-              buffer = event.buf,
-              group = highlight_augroup,
-              callback = vim.lsp.buf.document_highlight,
-            })
-
-            vim.api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
-              buffer = event.buf,
-              group = highlight_augroup,
-              callback = vim.lsp.buf.clear_references,
-            })
-
-            vim.api.nvim_create_autocmd('LspDetach', {
-              group = vim.api.nvim_create_augroup('kickstart-lsp-detach', { clear = true }),
-              callback = function(event2)
-                vim.lsp.buf.clear_references()
-                vim.api.nvim_clear_autocmds { group = 'kickstart-lsp-highlight', buffer = event2.buf }
-              end,
-            })
-          end
-
-          -- The following autocommand is used to enable inlay hints in your
-          -- code, if the language server you are using supports them
-          --
-          -- This may be unwanted, since they displace some of your code
           if client and client.server_capabilities.inlayHintProvider and vim.lsp.inlay_hint then
             map('<leader>th', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
@@ -517,7 +528,37 @@ require('lazy').setup({
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
         -- clangd = {},
-        gopls = {},
+        gopls = {
+          settings = {
+            gopls = {
+              hints = {
+                assignVariableTypes = false,
+                compositeLiteralFields = false,
+                compositeLiteralTypes = false,
+                constantValues = false,
+                functionTypeParameters = false,
+                parameterNames = false,
+                rangeVariableTypes = false,
+              },
+              codelenses = {
+                gc_details = false,
+                regenerate_cgo = false,
+                upgrade_dependency = false,
+              },
+              directoryFilters = {
+                '-node_modules',
+                '-.git',
+                '-vendor',
+                '-testdata',
+                '-third_party',
+              },
+              ui = {
+                semanticTokens = false,
+              },
+              usePlaceholders = true,
+            },
+          },
+        },
         -- pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
@@ -747,15 +788,26 @@ require('lazy').setup({
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     branch = 'main',
-    lazy = false,
-    build = ':TSUpdate',
+    event = { 'BufReadPost', 'BufNewFile' },
     config = function()
-      require('nvim-treesitter').install {
-       'bash', 'c', 'diff', 'go', 'gomod', 'gosum', 'gowork', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc'
+      local parser_install = require('nvim-treesitter').install
+      parser_install { 'go', 'gomod', 'gosum', 'gowork', 'lua', 'luadoc', 'vim', 'vimdoc' }
+
+      local enabled_fts = {
+        go = true,
+        gomod = true,
+        gosum = true,
+        gowork = true,
+        lua = true,
+        vim = true,
       }
 
       vim.api.nvim_create_autocmd('FileType', {
+        group = vim.api.nvim_create_augroup('kickstart-treesitter', { clear = true }),
         callback = function(args)
+          if vim.b[args.buf].large_file or not enabled_fts[vim.bo[args.buf].filetype] then
+            return
+          end
           if pcall(vim.treesitter.start, args.buf) then
             vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
           end
@@ -814,6 +866,7 @@ vim.cmd [[
   highlight! default link CmpItemKind CmpItemMenuDefault
 ]]
 
+require 'after.plugins.performance'
 require 'after.plugins.defaults'
 --
 -- The line beneath this is called `modeline`. See `:help modeline`

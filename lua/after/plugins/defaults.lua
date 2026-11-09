@@ -31,7 +31,12 @@ local setup_telescope_keymaps = function()
   nmap('gr', builtin.lsp_references, '[G]oto [R]eferences')
   nmap('<leader>ds', builtin.lsp_document_symbols, '[D]ocument [S]ymbols')
   nmap('<leader>ws', builtin.lsp_dynamic_workspace_symbols, '[W]orkspace [S]ymbols')
-  vim.keymap.set('n', '<leader>gs', builtin.git_status, { desc = '[G]it [S]tatus' })
+  vim.keymap.set('n', '<leader>gs', function()
+    builtin.git_status {
+      show_untracked = false,
+      git_icons = false,
+    }
+  end, { desc = '[G]it [S]tatus' })
 end
 
 if vim.v.vim_did_enter == 1 then
