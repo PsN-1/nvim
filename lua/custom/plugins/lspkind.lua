@@ -3,7 +3,7 @@ return {
   {
     'preservim/nerdtree',
     cmd = { 'NERDTreeToggle', 'NERDTreeFind', 'NERDTree' },
-    keys = { { '<leader>v', desc = '[V]iew file tree' } },
+    -- keys = { { '<leader>v', desc = '[V]iew file tree' } },
     init = function()
       vim.g.NERDTreeShowHidden = 1
     end,
